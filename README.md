@@ -2,7 +2,7 @@
 
 **Use any OpenCode Zen model (Muse Spark, Big Pickle, Ling, MiMo, Nemotron…) from Claude Code or any OpenAI client — free, local, no API keys.**
 
-[Русская версия](#русский-ru)
+[Русская версия](https://github.com/tavrida1337-sketch/OpenCode-Most#%D1%80%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-)
 
 ---
 
