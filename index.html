@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenCode Bridge</title>
+<style>
+  body { font-family: Consolas, monospace; background: #111; color: #ddd;
+         max-width: 960px; margin: 20px auto; padding: 0 16px; }
+  h2 { color: #fff; }
+  .card { background: #1b1b1b; border: 1px solid #333; border-radius: 8px;
+          padding: 12px 16px; margin-bottom: 14px; }
+  .ok { color: #7f7; } .bad { color: #f77; } .dim { color: #888; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { border-bottom: 1px solid #2a2a2a; padding: 4px 6px; text-align: left; word-break: break-all; }
+  tr.active { background: #222; }
+  textarea { width: 100%; height: 70px; background: #0d0d0d; color: #ddd;
+             border: 1px solid #333; border-radius: 6px; }
+  button { background: #2a2a2a; color: #fff; border: 1px solid #444;
+           border-radius: 6px; padding: 6px 14px; cursor: pointer; }
+  button:hover { background: #3a3a3a; }
+  pre { white-space: pre-wrap; background: #0d0d0d; padding: 10px;
+        border-radius: 6px; max-height: 300px; overflow: auto; }
+  code { background: #0d0d0d; padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h2>OpenCode Bridge</h2>
+
+<div class="card" id="api" style="font-size:18px">status api:?</div>
+
+<div class="card" id="status">подключение...</div>
+
+<div class="card">
+  <b>Claude Code / OpenAI-клиенты:</b><br><br>
+  <code id="baseurl">http://127.0.0.1:8000/v1</code><br><br>
+  <span class="dim">OPENAI_BASE_URL=&lt;base&gt; &nbsp; OPENAI_API_KEY=any &nbsp; модель: <code>auto</code> или <code>OpenCode</code>.
+  Отвечает модель выбранной сессии.</span><br><br>
+  <b>Claude Code:</b><br>
+  <code>ANTHROPIC_BASE_URL=http://127.0.0.1:8000</code><br>
+  <code>ANTHROPIC_API_KEY=any ANTHROPIC_MODEL=OpenCode</code><br>
+  <span class="dim">или в ~/.claude/settings.json: {"env": {"ANTHROPIC_BASE_URL": "http://127.0.0.1:8000", "ANTHROPIC_API_KEY": "any", "ANTHROPIC_MODEL": "OpenCode"}}</span>
+</div>
+
+<div class="card">
+  <b>Сессии опенкода — выбери куда писать</b>
+  <span class="dim">(радио — куда идут запросы Клода и теста. Папка = открытая директория)</span>
+  <div style="margin:8px 0">
+    <label class="dim">Модель для моста:
+      <select id="bridgemodel" onchange="setBridgeModel(this.value)" style="background:#0d0d0d;color:#ddd;border:1px solid #333;border-radius:6px;padding:4px 8px;margin-left:6px">
+        <option value="auto">следует за опенкоде (как внизу Build · ...)</option>
+      </select>
+    </label>
+    <button onclick="resetBridge()" style="margin-left:12px">Сбросить историю</button>
+    <span class="dim" style="margin-left:10px">клик по строке = выбрать сессию</span>
+  </div>
+  <table><thead><tr><th></th><th>Название</th><th>Папка</th><th>Модель</th><th>Обновлена</th></tr></thead>
+  <tbody id="sessions"></tbody></table>
+</div>
+
+<div class="card">
+  <b>Тест (пишет в выбранную сессию)</b><br><br>
+  <textarea id="testtext" placeholder="текст..."></textarea><br><br>
+  <button onclick="sendTest()">Отправить в выбранную сессию</button>
+  <pre id="answer" class="dim">ответ появится здесь</pre>
+</div>
+
+<script>
+async function jget(p) { return (await fetch(p)).json(); }
+async function jpost(p, b) {
+  return (await fetch(p, {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(b || {})})).json();
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+async function loadModels() {
+  try {
+    const r = await jget("/bridge/models");
+    const sel = document.getElementById("bridgemodel");
+    const cur = sel.value;
+    sel.innerHTML = '<option value="auto">следует за опенкоде (как внизу Build · ...)</option>';
+    (r.models || []).forEach(function(m) {
+      const v = m.providerID + "/" + m.id;
+      const o = document.createElement("option");
+      o.value = v; o.textContent = m.name || v; sel.appendChild(o);
+    });
+    // restore forced value
+    try {
+      const st2 = await jget("/bridge/status");
+      if (st2.forced_model) sel.value = st2.forced_model;
+      else sel.value = cur || "auto";
+    } catch(e) {}
+  } catch(e) {}
+}
+async function setBridgeModel(v) {
+  await jpost("/bridge/model", {model: v});
+  refresh();
+}
+async function refresh() {
+  try {
+    const st = await jget("/bridge/status");
+    const apiBox = document.getElementById("api");
+    if (st.api === "work") {
+      apiBox.innerHTML = "status api:<span class='ok'>work</span>";
+    } else {
+      apiBox.innerHTML = "status api:<span class='bad'>no work</span>" +
+        " <span class='dim'>(error: " + esc(st.api_error || "?") + ")</span>";
+    }
+    document.getElementById("baseurl").textContent = st.base_url;
+    const m = st.active_model || {};
+    const a = st.active_session || {};
+    const forced = st.forced_model || "";
+    document.getElementById("status").innerHTML =
+      "сервер: <span class='ok'>" + esc(st.server_url) + "</span><br>" +
+      "активная сессия: <b>" + esc(a.title || "?") + "</b><br>" +
+      "<span class='dim'>" + esc(a.id || "?") + " · " + esc(a.directory || "?") + "</span><br>" +
+      "модель сессии: <b>" + esc(m.providerID ? m.providerID + "/" + m.id : "?") + "</b>" +
+      (forced ? " · <span class='ok'>мост форсирует " + esc(forced) + "</span>" : " · <span class='dim'>мост следует за опенкоде</span>") +
+      "<br><span class='dim'>смени на сайте или внизу в опенкоде — оба работают</span>";
+    const bm = document.getElementById("bridgemodel");
+    if (forced) bm.value = forced; else if (!bm.value) bm.value = "auto";
+    const s = await jget("/bridge/sessions");
+    const tb = document.getElementById("sessions");
+    tb.innerHTML = "";
+    (s.sessions || []).forEach(function (it) {
+      const tr = document.createElement("tr");
+      if (it.active) tr.className = "active";
+      const d = it.updated ? new Date(it.updated).toLocaleString() : "?";
+      const mid = it.model && it.model.id
+        ? it.model.providerID + "/" + it.model.id : "?";
+      const dir = it.directory || "?";
+      const shortDir = dir.length > 45 ? "..." + dir.slice(-42) : dir;
+      tr.innerHTML = "<td><input type='radio' name='act' " +
+        (it.active ? "checked" : "") + " data-id='" + it.id + "'></td>" +
+        "<td>" + esc(it.title || it.id) + "</td>" +
+        "<td class='dim' title='" + esc(dir) + "'>" + esc(shortDir) + "</td>" +
+        "<td>" + esc(mid) + "</td><td class='dim'>" + esc(d) + "</td>";
+      tr.onclick = function(e) {
+        if (e.target.tagName === "INPUT") return;
+        selectSession(it.id);
+      };
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll("input[name=act]").forEach(function (r) {
+      r.onchange = function () { selectSession(r.getAttribute("data-id")); };
+    });
+  } catch (e) {
+    document.getElementById("status").innerHTML =
+      "<span class='bad'>мост недоступен: " + esc(e) + "</span>";
+  }
+}
+async function selectSession(id) {
+  await jpost("/bridge/active", {id: id});
+  refresh();
+}
+async function sendTest() {
+  const t = document.getElementById("testtext").value.trim();
+  if (!t) return;
+  const box = document.getElementById("answer");
+  box.textContent = "выполнение в выбранную сессию...";
+  try {
+    const r = await jpost("/bridge/test", {text: t});
+    box.textContent = r.answer || JSON.stringify(r);
+    refresh();
+  } catch (e) {
+    box.textContent = "ошибка: " + e;
+  }
+}
+async function resetBridge() {
+  await jpost("/bridge/reset", {});
+  refresh();
+}
+loadModels();
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
