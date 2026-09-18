@@ -736,6 +736,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         "type": "model", "created_at": now_iso}
 
             entries = [_entry("OpenCode", "OpenCode"),
+                       _entry("OpenCode[1m]", "OpenCode[1m]"),
                        _entry("auto", "auto")]
             if model_id not in ("opencode-chat", ""):
                 entries.append(_entry(model_id, model_id))

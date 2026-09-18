@@ -38,8 +38,8 @@
   Отвечает модель выбранной сессии.</span><br><br>
   <b>Claude Code:</b><br>
   <code>ANTHROPIC_BASE_URL=http://127.0.0.1:8000</code><br>
-  <code>ANTHROPIC_API_KEY=any ANTHROPIC_MODEL=OpenCode</code><br>
-  <span class="dim">или в ~/.claude/settings.json: {"env": {"ANTHROPIC_BASE_URL": "http://127.0.0.1:8000", "ANTHROPIC_API_KEY": "any", "ANTHROPIC_MODEL": "OpenCode"}}</span>
+  <code>ANTHROPIC_API_KEY=any ANTHROPIC_MODEL=OpenCode[1m]</code><br>
+  <span class="dim">[1m] = контекст 1M, без него Клод режет до 200k. Или в ~/.claude/settings.json: {"env": {"ANTHROPIC_BASE_URL": "http://127.0.0.1:8000", "ANTHROPIC_API_KEY": "any", "ANTHROPIC_MODEL": "OpenCode[1m]"}}</span>
 </div>
 
 <div class="card">
