@@ -135,6 +135,7 @@ OpenCode Desktop поднимает скрытый локальный серве
 ---
 
 MIT — делай что хочешь, звезда приветствуется 🙂
+
 <img width="509" height="266" alt="image" src="https://github.com/user-attachments/assets/994b9556-86e8-44d9-8a73-5a637845a39b" />
 <img width="585" height="790" alt="image" src="https://github.com/user-attachments/assets/94109444-b4e5-40a2-a1a1-806699e7043a" />
 
