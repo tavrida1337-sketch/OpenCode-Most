@@ -249,7 +249,7 @@ class Upstream:
             self.auth = "Basic " + token
         return ""
 
-    def _call(self, method, path, payload=None, timeout=30):
+    def _call(self, method, path, payload=None, timeout=30, _retried=False):
         with self.lock:
             base, auth = self.base_url, self.auth
         if not base:
@@ -265,10 +265,10 @@ class Upstream:
                 set_health(True)
                 return resp.status, resp.read().decode("utf-8", errors="ignore")
         except urllib.error.HTTPError as exc:
-            if exc.code == 401:
+            if exc.code == 401 and not _retried:
                 err = self.discover()  # password/port may have rotated; retry once
                 if not err:
-                    return self._call(method, path, payload, timeout)
+                    return self._call(method, path, payload, timeout, True)
                 set_health(False, "unauthorized")
                 return exc.code, ""
             if 500 <= exc.code < 600:
@@ -280,7 +280,13 @@ class Upstream:
             except Exception:
                 return exc.code, ""
         except Exception as exc:
-            # network-level failure (TLS disconnect, refused, timeout, ...)
+            # network-level failure (TLS disconnect, refused, timeout, ...).
+            # Most common cause: desktop restarted -> new random port, our
+            # stored base_url is dead. Re-discover and retry once.
+            if not _retried:
+                err = self.discover()
+                if not err:
+                    return self._call(method, path, payload, timeout, True)
             set_health(False, str(exc) or type(exc).__name__)
             return 0, str(exc)
 
